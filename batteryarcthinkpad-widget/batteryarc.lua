@@ -21,6 +21,8 @@ local batteryarc_widget = {}
 
 local notify_icon
 local last_status=''
+local last_icon=''
+--local notify_color
 
 local function worker(user_args)
 
@@ -95,12 +97,13 @@ local function worker(user_args)
 --            width = 300,
 --        }
         naughty.notify {
-            icon = msg_icon_dir..'/'..notify_icon,
+            icon = notify_icon,
             icon_size = 100,
 	    text = notify_text,
             -- title = warning_msg_title,
 	    title = notify_title,
-            timeout = 25, -- show the warning for a longer time
+            timeout = 30, -- show the warning for a longer time
+            -- timeout = 0,
             hover_timeout = 0.5,
             position = warning_msg_position,
             bg = notify_bg_color,
@@ -113,6 +116,7 @@ local function worker(user_args)
         local charge = 0
         local status
 	local time_empty
+	local icon
 
         for s in stdout:gmatch("[^\r\n]+") do
 	    if status == nil then
@@ -133,31 +137,30 @@ local function worker(user_args)
 	            time_empty = read_time_empty
 	        end
 	    end
+	    if icon == nil then
+	        local read_icon = string.match(s, '[%s]*icon.name:[%s]+\'(.*)\'')
+                if read_icon ~= nil then
+	            icon = read_icon
+	        end
+	    end
 	end
 
 --	charge=2
 --	status
 
-	local notify_text = status..', '..charge..'%'
-	notify_text = time_empty ~= nil
-	    and notify_text..', '..time_empty..' remaining'
-	    or notify_text
+
+	local notify_title = status..', '..charge..'%'
+	local notify_text = time_empty ~= nil
+	    and time_empty..' remaining'
+	    or ''
 
         widget.value = charge
 
+	notify_icon = msg_icon_dir..'/'..icon..'.svg'
+	-- text_with_background.bgimage = notify_icon
 
 
 
-        if status == 'charging' then
-            text_with_background.bg = charging_color
-            text_with_background.fg = '#000000'
---        elseif status == 'discharging' then
---            text_with_background.bg = discharging_color
---            text_with_background.fg = '#000000'
-	else
-            text_with_background.bg = '#00000000'
-            text_with_background.fg = main_color
-        end
 
         if show_current_level == true then
             --- if battery is fully charged (100) there is not enough place for three digits, so we don't show any text
@@ -168,48 +171,81 @@ local function worker(user_args)
             text.text = ''
         end
 
-	local notify_icon_charging = status == charging
-	    and '-charging'
-	    or ''
 
-	local notify_color
+	local fg_color
 
---    	    notify_color = charging_color
+--    	    fg_color = charging_color
 
-        if charge < 15 then
-	    notify_icon = 'battery-empty'..notify_icon_charging..'-symbolic.svg'
-    	    notify_color = low_level_color
-            widget.colors = { low_level_color }
+        if charge <= 15 then
+	    -- notify_icon = 'battery-empty'..notify_icon_charging..'-symbolic.svg'
+    	    fg_color = low_level_color
+            -- widget.colors = { low_level_color }
             text_with_background.bg = low_level_color
-            if enable_battery_warning and status ~= 'charging' and os.difftime(os.time(), last_battery_check) > 300 then
-                -- if 5 minutes have elapsed since the last warning
-                last_battery_check = os.time()
+            -- if enable_battery_warning and status ~= 'charging' and os.difftime(os.time(), last_battery_check) > 300 then
+            --     -- if 5 minutes have elapsed since the last warning
+            --     last_battery_check = os.time()
 
-                show_battery_warning(warning_msg_title, notify_text)
-            end
+            --     show_battery_warning(warning_msg_title, notify_text)
+            -- end
         elseif charge > 15 and charge < 40 then
-    	    notify_color = medium_level_color
-	    notify_icon = 'battery-caution'..notify_icon_charging..'-symbolic.svg'
-            widget.colors = { medium_level_color }
-        elseif charge > 40 and charge < 90 then
-	    notify_icon = 'battery-good'..notify_icon_charging..'-symbolic.svg'
-            widget.colors = { main_color }
+    	    fg_color = medium_level_color
+	    -- notify_icon = 'battery-caution'..notify_icon_charging..'-symbolic.svg'
+            -- widget.colors = { medium_level_color }
+        -- elseif charge > 40 and charge < 90 then
+	--     -- notify_icon = 'battery-good'..notify_icon_charging..'-symbolic.svg'
+        --     -- widget.colors = { main_color }
+    	--     fg_color = main_color
 	else
-	    notify_icon = 'battery-full'..notify_icon_charging..'-symbolic.svg'
-            widget.colors = { main_color }
+	    -- notify_icon = 'battery-full'..notify_icon_charging..'-symbolic.svg'
+            -- widget.colors = { main_color }
+    	    fg_color = main_color
         end
 
-	if status ~= last_status then
-	    show_battery_warning('Battery status changed', notify_text)
+        widget.colors = { fg_color }
+
+        if status == 'charging' then
+            text_with_background.bg = charging_color
+            text_with_background.fg = '#000000'
+        elseif status == 'discharging' then
+            -- text_with_background.bg = fg_color
+            text_with_background.bg = fg_color ~= nil
+	                            and fg_color
+	                            or '#ffffff'
+
+            text_with_background.fg = '#000000'
+	else
+            text_with_background.bg = '#00000000'
+            text_with_background.fg = main_color
+        end
+
+        -- if 5 minutes have elapsed since the last warning
+        if (enable_battery_warning and os.difftime(os.time(), last_battery_check) > 300)
+	        and (
+		        ( charge <= 15 and status ~= 'charging' )
+		    or  ( status ~= last_status )
+		    or  ( icon ~= last_icon )
+		) then
+
+            last_battery_check = os.time()
+            -- show_battery_warning(warning_msg_title, notify_text)
+	    show_battery_warning(notify_title, notify_text)
 	    last_status = status
-	end
+	    last_icon = icon
+        end
+
+
+	-- if status ~= last_status then
+	--     show_battery_warning('Battery status changed', notify_text, notify_color)
+	--     last_status = status
+	-- end
 
 -- v--test
---        show_battery_warning('battery tester', notify_text)
+--        show_battery_warning('battery tester', notify_text..main_color, notify_color)
 -- ^--test
     end
 
     watch('upower -i '..upower_device, timeout, update_widget, batteryarc_widget)
+    -- watch('cat '..HOME..'/tmp/upower-test.txt', timeout, update_widget, batteryarc_widget)
 
     -- Popup with battery info
     local notification
@@ -218,7 +254,7 @@ local function worker(user_args)
                 function(stdout, _, _, _)
                     naughty.destroy(notification)
                     notification = naughty.notify {
-                        icon = msg_icon_dir..'/'..notify_icon,
+                        icon = notify_icon,
                         icon_size = 100,
                         text = stdout,
                         title = "Battery status",
