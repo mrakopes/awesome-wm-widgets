@@ -23,6 +23,7 @@ local notify_icon
 local last_status=''
 local last_icon=''
 --local notify_color
+local notify = {}
 
 local function worker(user_args)
 
@@ -44,6 +45,8 @@ local function worker(user_args)
     local discharging_color = args.discharging_color or '#1e90ff'
     local notify_bg_color = args.notify_bg_color or '#000000'
     local notify_fg_color = args.notify_fg_color or '#eee9ef'
+    local notify_icon_size = args.notify_icon_size or 200
+    local notify_width = args.notify_width or 350
 
 
     local warning_msg_title = args.warning_msg_title or 'Battery level is low!'
@@ -82,34 +85,30 @@ local function worker(user_args)
 
     local last_battery_check = os.time()
 
+    local notification
     --[[ Show warning notification ]]
-    local function show_battery_warning(notify_title, notify_text, notify_color)
---        naughty.notify {
---            icon = warning_msg_icon,
---            icon_size = 100,
---            text = warning_msg_text,
---            title = warning_msg_title,
---            timeout = 25, -- show the warning for a longer time
---            hover_timeout = 0.5,
---            position = warning_msg_position,
---            bg = notify_bg_color,
---            fg = notify_fg_color,
---            width = 300,
---        }
-        naughty.notify {
-            icon = notify_icon,
-            icon_size = 100,
-	    text = notify_text,
-            -- title = warning_msg_title,
-	    title = notify_title,
-            timeout = 30, -- show the warning for a longer time
-            -- timeout = 0,
-            hover_timeout = 0.5,
-            position = warning_msg_position,
-            bg = notify_bg_color,
-            fg = notify_color or notify_fg_color,
-            width = 300,
-        }
+    local function show_battery_warning(notify, timeout)
+
+        awful.spawn.easy_async([[bash -c 'acpi']],
+                function(stdout, _, _, _)
+                    naughty.destroy(notification)
+		    local text = notify.text ~= nil
+		   		and notify.text..'\n\n'..stdout
+				or stdout
+                    notification = naughty.notify {
+                        icon = notify.icon,
+                        icon_size = notify_icon_size,
+	                title = notify.title,
+	                text = text,
+                        timeout = timeout or notify.timeout or 30,
+                        -- timeout = 0,
+                        -- hover_timeout = 0.5,
+                        position = warning_msg_position,
+                        bg = notify_bg_color,
+                        -- fg = notify.color or notify_fg_color,
+                        width = notify_width,
+                    }
+	        end)
     end
 
     local function update_widget(widget, stdout)
@@ -117,12 +116,19 @@ local function worker(user_args)
         local status
 	local time_empty
 	local icon
+	local rate
 
         for s in stdout:gmatch("[^\r\n]+") do
 	    if status == nil then
 	        local read_status = string.match(s, '[%s]*state:[%s]+([%w%p]+)')
                 if read_status ~= nil then
 	            status = string.lower(read_status)
+	        end
+	    end
+	    if rate == nil then
+	        local read_rate = string.match(s, '[%s]*energy.rate:[%s]+([%d]+) W')
+                if read_rate ~= nil then
+	            rate = tonumber(read_rate)
 	        end
 	    end
 	    if charge == 0 then
@@ -132,7 +138,7 @@ local function worker(user_args)
 	        end
 	    end
 	    if time_empty == nil then
-	        local read_time_empty = string.match(s, '[%s]*time to empty:[%s]+(.+)')
+	        local read_time_empty = string.match(s, '[%s]*time to [%w]+:[%s]+(.+)')
                 if read_time_empty ~= nil then
 	            time_empty = read_time_empty
 	        end
@@ -149,18 +155,31 @@ local function worker(user_args)
 --	status
 
 
-	local notify_title = status..', '..charge..'%'
-	local notify_text = time_empty ~= nil
+	-- local notify_title = status..', '..charge..'%'
+	-- local notify_text = time_empty ~= nil
+	--     and time_empty..' remaining'
+	--     or ''
+
+
+	-- notify_icon = msg_icon_dir..'/'..icon..'.svg'
+	-- -- text_with_background.bgimage = notify_icon
+
+
+
+	notify.title = 'Battery '..status..', '..charge..'%'
+	notify.text = time_empty ~= nil
 	    and time_empty..' remaining'
 	    or ''
 
+
+	notify.text = rate ~= nil
+		and notify.text..', '..rate..' W'
+		or notify.text
+
+	notify.icon = msg_icon_dir..'/'..icon..'.svg'
+
+
         widget.value = charge
-
-	notify_icon = msg_icon_dir..'/'..icon..'.svg'
-	-- text_with_background.bgimage = notify_icon
-
-
-
 
         if show_current_level == true then
             --- if battery is fully charged (100) there is not enough place for three digits, so we don't show any text
@@ -177,27 +196,11 @@ local function worker(user_args)
 --    	    fg_color = charging_color
 
         if charge <= 15 then
-	    -- notify_icon = 'battery-empty'..notify_icon_charging..'-symbolic.svg'
     	    fg_color = low_level_color
-            -- widget.colors = { low_level_color }
             text_with_background.bg = low_level_color
-            -- if enable_battery_warning and status ~= 'charging' and os.difftime(os.time(), last_battery_check) > 300 then
-            --     -- if 5 minutes have elapsed since the last warning
-            --     last_battery_check = os.time()
-
-            --     show_battery_warning(warning_msg_title, notify_text)
-            -- end
         elseif charge > 15 and charge < 40 then
     	    fg_color = medium_level_color
-	    -- notify_icon = 'battery-caution'..notify_icon_charging..'-symbolic.svg'
-            -- widget.colors = { medium_level_color }
-        -- elseif charge > 40 and charge < 90 then
-	--     -- notify_icon = 'battery-good'..notify_icon_charging..'-symbolic.svg'
-        --     -- widget.colors = { main_color }
-    	--     fg_color = main_color
 	else
-	    -- notify_icon = 'battery-full'..notify_icon_charging..'-symbolic.svg'
-            -- widget.colors = { main_color }
     	    fg_color = main_color
         end
 
@@ -219,55 +222,31 @@ local function worker(user_args)
         end
 
         -- if 5 minutes have elapsed since the last warning
-        if (enable_battery_warning and os.difftime(os.time(), last_battery_check) > 300)
+        if (enable_battery_warning and os.difftime(os.time(), last_battery_check) > 10)
 	        and (
-		        ( charge <= 15 and status ~= 'charging' )
+		        ( charge <= 15 and status ~= 'charging' and os.difftime(os.time(), last_battery_check) > 60)
 		    or  ( status ~= last_status )
 		    or  ( icon ~= last_icon )
 		) then
 
             last_battery_check = os.time()
-            -- show_battery_warning(warning_msg_title, notify_text)
-	    show_battery_warning(notify_title, notify_text)
+	    show_battery_warning(notify)
 	    last_status = status
 	    last_icon = icon
         end
 
-
-	-- if status ~= last_status then
-	--     show_battery_warning('Battery status changed', notify_text, notify_color)
-	--     last_status = status
-	-- end
-
 -- v--test
 --        show_battery_warning('battery tester', notify_text..main_color, notify_color)
 -- ^--test
+
     end
 
-    watch('upower -i '..upower_device, timeout, update_widget, batteryarc_widget)
-    -- watch('cat '..HOME..'/tmp/upower-test.txt', timeout, update_widget, batteryarc_widget)
-
-    -- Popup with battery info
-    local notification
-    local function show_battery_status()
-        awful.spawn.easy_async([[bash -c 'acpi']],
-                function(stdout, _, _, _)
-                    naughty.destroy(notification)
-                    notification = naughty.notify {
-                        icon = notify_icon,
-                        icon_size = 100,
-                        text = stdout,
-                        title = "Battery status",
-                        timeout = 5,
-                        width = 300,
-                        position = notification_position,
-                    }
-                end)
-    end
+    -- watch('upower -i '..upower_device, timeout, update_widget, batteryarc_widget)
+    watch('cat '..HOME..'/tmp/upower-test.txt', timeout, update_widget, batteryarc_widget)
 
     if show_notification_mode == 'on_hover' then
-        batteryarc_widget:connect_signal("mouse::enter", function() show_battery_status() end)
-        batteryarc_widget:connect_signal("mouse::leave", function() naughty.destroy(notification) end)
+        batteryarc_widget:connect_signal("mouse::enter", function() show_battery_warning(notify, 5) end)
+        -- batteryarc_widget:connect_signal("mouse::leave", function() naughty.destroy(notification) end)
     elseif show_notification_mode == 'on_click' then
         batteryarc_widget:connect_signal('button::press', function(_, _, _, button)
             if (button == 1) then show_battery_status() end
