@@ -13,9 +13,7 @@ Depending of the battery status it could look following ways:
  - ![80_d](./80_d.png) - more than 40 percent
  - ![80_c](./80_c.png) - more than 40 percent, charging
 
-If a battery level is low then warning popup will show up:
-
-![warning](./warning.png)
+A notification shows up when the battery state or the upower icon changes. While the battery is discharging at 15% or less it is repeated every `warning_interval` seconds. There is only one notification at a time, no matter how many widgets there are.
 
 ## Customization
 
@@ -27,23 +25,31 @@ It is possible to customize widget by providing a table with all or some of the 
 | `arc_thickness` | 2 | Thickness of the arc |
 | `show_current_level`| false | Show current charge level |
 | `size`| 18 | Size of the widget |
-| `timeout` | 10 | How often in seconds the widget refreshes |
 | `main_color` | `beautiful.fg_color` | Color of the text with the current charge level and the arc |
 | `bg_color` | `#ffffff11` | Color of the charge level background |
-| `low_level_color` | `#e53935` | Arc color when battery charge is less that 15% |
+| `low_level_color` | `#e53935` | Arc color when battery charge is 15% or less |
 | `medium_level_color` | `#c0ca33` |  Arc color when battery charge is between 15% and 40% |
 | `charging_color` | `#43a047` |  Color of the circle inside the arc when charging  |
-| `warning_msg_title` | _Huston, we have a problem_ | Title of the warning popup |
-| `warning_msg_text` | _Battery is dying_ | Text of the warning popup |
-| `warning_msg_position` | `bottom_right` | Position of the warning popup |
-| `warning_msg_icon` | ~/.config/awesome/awesome-wm-widgets/batteryarc-widget/spaceman.jpg | Icon of the warning popup |
-| `enable_battery_warning` | `true` | Display low battery warning |
 | `show_notification_mode` | `on_hover` | How to trigger a notification with the battery status: `on_hover`, `on_click` or `off`  |
-| `notification_position` | `top_left` | Where to show she notification when triggered. Values: `top_right`, `top_left`, `bottom_left`, `bottom_right`, `top_middle`, `bottom_middle`. (default `top_right`) |
+
+All the widgets share one upower poller and one notification, so the following parameters are only read from the first created widget:
+
+| Name | Default | Description |
+|---|---|---|
+| `timeout` | 10 | How often in seconds the widget refreshes |
+| `upower_device` | `/org/freedesktop/UPower/devices/DisplayDevice` | Device passed to `upower -i` |
+| `enable_battery_warning` | `true` | Show notifications without being asked to: on state changes and on low battery |
+| `warning_interval` | 300 | How often in seconds to repeat the low battery notification |
+| `warning_timeout` | 30 | For how long in seconds these notifications stay on the screen |
+| `warning_msg_position` | `bottom_right` | Position of the notification |
+| `msg_icon_dir` | `/usr/share/icons/Arc/status/symbolic` | Directory with the upower icons, as `.svg` files |
+| `notify_icon_size` | 200 | Maximum size of the notification icon |
+| `notify_width` | 350 | Width of the notification |
+| `notify_bg_color` | `#000000` | Background color of the notification |
 
 ## Requirements
 
-This widget requires the `acpi` command to be available to retrieve battery and
+This widget requires the `upower` command to be available to retrieve battery and
 power information.
 
 ## Installation
@@ -51,7 +57,7 @@ power information.
 Clone repo, include widget and use it in **rc.lua**:
 
 ```lua
-local batteryarc_widget = require("awesome-wm-widgets.batteryarc-widget.batteryarc")
+local batteryarc_widget = require("awesome-wm-widgets.batteryarcthinkpad-widget.batteryarc")
 ...
 s.mytasklist, -- Middle widget
 	{ -- Right widgets
