@@ -234,7 +234,7 @@ local function worker(user_args)
         config = {
             upower_device = args.upower_device or '/org/freedesktop/UPower/devices/DisplayDevice',
             -- msg_icon_dir = args.msg_icon_dir or '/usr/share/icons/Arc/status/symbolic',
-            msg_icon_dir = args.msg_icon_dir or '/usr/share/icons/breeze-dark/status/32',
+            msg_icon_dir = args.msg_icon_dir or '/usr/share/icons/breeze-dark/status/16',
             notify_bg_color = args.notify_bg_color or '#000000',
             notify_icon_size = args.notify_icon_size or 200,
             notify_width = args.notify_width or 350,
